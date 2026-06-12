@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CanSat GCS | India Space Lab</title>
+  <link rel="stylesheet" href="css/style.css">
+
+  <!-- Leaflet.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<!-- Scan line animation -->
+<div class="scan-line"></div>
+
+<!-- =============================== HEADER =============================== -->
+<header id="header">
+  <div class="logo">
+    <div class="logo-icon">🛰</div>
+    <div>
+      <div class="logo-text">CANSAT GCS</div>
+      <div class="logo-sub">INDIA SPACE LAB · GROUND CONTROL SOFTWARE</div>
+    </div>
+  </div>
+
+  <div class="header-status">
+    <div id="mission-clock">00:00:00</div>
+    <div id="mission-status" class="status-pill standby">STANDBY</div>
+
+    <!-- Signal strength -->
+    <div style="display:flex;align-items:center;gap:6px;">
+      <div class="signal-bars">
+        <div class="signal-bar" style="height:8px"></div>
+        <div class="signal-bar" style="height:11px"></div>
+        <div class="signal-bar" style="height:14px"></div>
+        <div class="signal-bar" style="height:17px"></div>
+        <div class="signal-bar" style="height:20px"></div>
+      </div>
+      <span id="rssi-val" style="font-family:var(--font-mono);font-size:10px;color:var(--text-secondary);">—</span>
+    </div>
+  </div>
+</header>
+
+<!-- =============================== CONTROL BAR =============================== -->
+<div id="control-bar">
+  <button id="btn-start"      class="btn btn-start">▶ START</button>
+  <button id="btn-stop"       class="btn btn-stop">■ STOP</button>
+  <div class="sep"></div>
+  <button id="btn-export-csv"   class="btn btn-blue">⬇ Export CSV</button>
+  <button id="btn-export-graph" class="btn btn-cyan">⬇ Export Graph</button>
+  <div class="sep"></div>
+  <button id="btn-sync-time"  class="btn btn-yellow">⏱ Sync PC Time</button>
+  <button id="btn-reset-pkt"  class="btn btn-orange">↺ Reset Packets</button>
+
+  <div id="packet-counter">PACKETS: <span id="pkt-count">0</span></div>
+</div>
+
+<!-- =============================== MAIN GRID =============================== -->
+<div id="main-grid">
+
+  <!-- ===== COL 1: Left Panels ===== -->
+  <div style="display:flex;flex-direction:column;gap:8px;">
+
+    <!-- Container Telemetry -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">📡 Container Telemetry</span>
+        <span class="panel-badge" id="tval-phase">PRE-LAUNCH</span>
+      </div>
+      <div class="panel-body">
+        <div class="telem-grid">
+          <div class="telem-field">
+            <div class="telem-label">Altitude</div>
+            <div class="telem-value"><span id="tval-altitude">—</span><span class="telem-unit">m</span></div>
+          </div>
+          <div class="telem-field">
+            <div class="telem-label">Pressure</div>
+            <div class="telem-value"><span id="tval-pressure">—</span><span class="telem-unit">kPa</span></div>
+          </div>
+          <div class="telem-field">
+            <div class="telem-label">Temperature</div>
+            <div class="telem-value"><span id="tval-temperature">—</span><span class="telem-unit">°C</span></div>
+          </div>
+          <div class="telem-field">
+            <div class="telem-label">Descent Rate</div>
+            <div class="telem-value"><span id="tval-descent">—</span><span class="telem-unit">m/s</span></div>
+          </div>
+          <div class="telem-field">
+            <div class="telem-label">Humidity</div>
+            <div class="telem-value"><span id="tval-humidity">—</span><span class="telem-unit">%</span></div>
+          </div>
+          <div class="telem-field">
+            <div class="telem-label">Signal RSSI</div>
+            <div class="telem-value"><span id="tval-rssi">—</span><span class="telem-unit">dBm</span></div>
+          </div>
+        </div>
+
+        <!-- Battery -->
+        <div style="margin-top:10px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+            <span style="font-size:9px;letter-spacing:1.5px;color:var(--text-secondary);text-transform:uppercase;">Battery Voltage</span>
+            <span style="font-family:var(--font-mono);font-size:12px;color:var(--accent-green);">
+              <span id="tval-battery">—</span>V · <span id="battery-pct">—</span>
+            </span>
+          </div>
+          <div class="battery-bar"><div class="battery-fill" id="battery-fill" style="width:100%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Payload Telemetry -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">🔧 Payload Telemetry</span>
+        <span class="panel-badge">IMU / ACCEL</span>
+      </div>
+      <div class="panel-body">
+        <div class="telem-grid">
+          <div class="telem-field">
+            <div class="telem-label">Accel X</div>
+            <div class="telem-value"><span id="tval-accelx">—</span><span class="telem-unit">m/s²</span></div>
+          </div>
+          <div class="telem-field">
+            <div class="telem-label">Accel Y</div>
+            <div class="telem-value"><span id="tval-accely">—</span><span class="telem-unit">m/s²</span></div>
+          </div>
+          <div class="telem-field">
+            <div class="telem-label">Accel Z</div>
+            <div class="telem-value"><span id="tval-accelz">—</span><span class="telem-unit">m/s²</span></div>
+          </div>
+          <div class="telem-field">
+            <div class="telem-label">Packet ID</div>
+            <div class="telem-value"><span id="tval-packetid">—</span></div>
+          </div>
+        </div>
+
+        <!-- GPS Sub-panel -->
+        <div style="margin-top:10px;padding:8px;background:var(--bg-card2);border:1px solid var(--border);border-radius:2px;">
+          <div style="font-family:var(--font-hud);font-size:9px;letter-spacing:2px;color:var(--text-secondary);margin-bottom:6px;">GPS STATUS</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
+            <div><div class="telem-label">Latitude</div><div class="telem-value" style="font-size:13px;" id="gps-lat">—</div></div>
+            <div><div class="telem-label">Longitude</div><div class="telem-value" style="font-size:13px;" id="gps-lon">—</div></div>
+            <div><div class="telem-label">Fix Status</div><div class="telem-value" style="font-size:13px;" id="gps-fix">—</div></div>
+            <div><div class="telem-label">Satellites</div><div class="telem-value" style="font-size:13px;" id="gps-sat">—</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Error Code System -->
+    <div class="panel" id="error-panel">
+      <div class="panel-header">
+        <span class="panel-title">⚠ Error Code System</span>
+        <span class="panel-badge" id="error-code-full" style="font-family:var(--font-mono);font-size:14px;color:var(--accent-green);">0000</span>
+      </div>
+      <div class="panel-body">
+        <div class="error-display">
+          <div class="error-digit ok" id="err-d1">0</div>
+          <div class="error-digit ok" id="err-d2">0</div>
+          <div class="error-digit ok" id="err-d3">0</div>
+          <div class="error-digit ok" id="err-d4">0</div>
+        </div>
+        <div class="error-codes-list">
+          <div class="error-item ok" id="err-item1">
+            <span class="e-label">D1: Descent Rate</span>
+            <span class="e-status">8-10 m/s OK</span>
+          </div>
+          <div class="error-item ok" id="err-item2">
+            <span class="e-label">D2: GPS Availability</span>
+            <span class="e-status">GPS FIXED</span>
+          </div>
+          <div class="error-item ok" id="err-item3">
+            <span class="e-label">D3: Payload Separation</span>
+            <span class="e-status">SEPARATED</span>
+          </div>
+          <div class="error-item ok" id="err-item4">
+            <span class="e-label">D4: Emergency Chute</span>
+            <span class="e-status">INACTIVE</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end col 1 -->
+
+  <!-- ===== COL 2: Graphs Panel ===== -->
+  <div class="panel" id="graphs-panel">
+    <div class="panel-header">
+      <span class="panel-title">📊 Real-Time Telemetry Graphs</span>
+      <span class="panel-badge">LIVE · 60s WINDOW</span>
+    </div>
+    <div class="graphs-grid">
+      <div class="chart-container">
+        <div class="chart-title">🏔 Altitude (m)</div>
+        <div style="height:140px;"><canvas id="chart-altitude"></canvas></div>
+      </div>
+      <div class="chart-container">
+        <div class="chart-title">💧 Pressure (kPa)</div>
+        <div style="height:140px;"><canvas id="chart-pressure"></canvas></div>
+      </div>
+      <div class="chart-container">
+        <div class="chart-title">🌡 Temperature (°C)</div>
+        <div style="height:140px;"><canvas id="chart-temperature"></canvas></div>
+      </div>
+      <div class="chart-container">
+        <div class="chart-title">⬇ Descent Rate (m/s)</div>
+        <div style="height:140px;"><canvas id="chart-descent"></canvas></div>
+      </div>
+      <div class="chart-container" style="grid-column:1/-1;">
+        <div class="chart-title">🔋 Battery Voltage (V)</div>
+        <div style="height:120px;"><canvas id="chart-battery"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Tracking Map -->
+    <div class="panel" id="map-panel" style="margin:0 10px 10px;border-radius:2px;overflow:hidden;">
+      <div class="panel-header">
+        <span class="panel-title">🗺 Live GPS Tracking Map</span>
+        <span class="panel-badge">OpenStreetMap · Leaflet.js</span>
+      </div>
+      <div id="map"></div>
+    </div>
+
+    <!-- Telemetry Log -->
+    <div class="panel-header" style="margin:0 10px 4px;padding:6px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:2px 2px 0 0;">
+      <span class="panel-title" style="font-size:10px;">📋 Raw Telemetry Log</span>
+    </div>
+    <div id="telem-log"></div>
+  </div><!-- end col 2 -->
+
+  <!-- ===== COL 3: Right Panels ===== -->
+  <div style="display:flex;flex-direction:column;gap:8px;">
+
+    <!-- Mission Control -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">🚀 Mission Control</span>
+        <span class="panel-badge">COMMAND UPLINK</span>
+      </div>
+      <div class="panel-body">
+        <div class="mission-cmd">
+          <button class="cmd-btn cmd-sep" id="cmd-sep">
+            <span class="cmd-icon">🔓</span>
+            <span class="cmd-text">Manual Separation</span>
+            <span class="cmd-status">READY</span>
+          </button>
+          <button class="cmd-btn cmd-chute" id="cmd-chute">
+            <span class="cmd-icon">🪂</span>
+            <span class="cmd-text">Emergency Parachute</span>
+            <span class="cmd-status">STANDBY</span>
+          </button>
+          <button class="cmd-btn cmd-redun" id="cmd-redun">
+            <span class="cmd-icon">⚡</span>
+            <span class="cmd-text">Redundant Activation</span>
+            <span class="cmd-status">READY</span>
+          </button>
+        </div>
+        <div id="cmd-log"></div>
+      </div>
+    </div>
+
+    <!-- Orientation Visualization -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">🧭 Orientation (Roll·Pitch·Yaw)</span>
+        <span class="panel-badge">ARTIFICIAL HORIZON</span>
+      </div>
+      <div class="panel-body" style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+        <canvas id="orient-canvas" width="220" height="220"></canvas>
+        <div class="orient-vals">
+          <div class="orient-field">
+            <div class="orient-label">Roll</div>
+            <div class="orient-val" id="val-roll">0.0°</div>
+          </div>
+          <div class="orient-field">
+            <div class="orient-label">Pitch</div>
+            <div class="orient-val" id="val-pitch">0.0°</div>
+          </div>
+          <div class="orient-field">
+            <div class="orient-label">Yaw</div>
+            <div class="orient-val" id="val-yaw">0.0°</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Video Stream -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">📹 Live Video Stream</span>
+        <span class="panel-badge"><span id="stream-status" class="stream-status">OFFLINE</span></span>
+      </div>
+      <div id="video-container">
+        <video id="cam-video" autoplay muted playsinline></video>
+        <div id="video-placeholder" style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;height:160px;">
+          <span class="cam-icon">📷</span>
+          <span>VIDEO OFFLINE</span>
+          <span style="font-size:9px;letter-spacing:1px;margin-top:4px;color:var(--text-dim)">CLICK START STREAM</span>
+        </div>
+      </div>
+      <div class="video-controls">
+        <select id="cam-select">
+          <option value="">Default Camera</option>
+        </select>
+        <button id="btn-cam-start" class="btn btn-start" style="padding:5px 10px;font-size:10px;">▶ Stream</button>
+        <button id="btn-cam-stop"  class="btn btn-stop"  style="padding:5px 10px;font-size:10px;">■ Stop</button>
+      </div>
+    </div>
+
+  </div><!-- end col 3 -->
+
+</div><!-- end main-grid -->
+
+<script src="js/gcs.js"></script>
+</body>
+</html>
